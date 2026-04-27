@@ -3,14 +3,44 @@ import { useAuth } from '../App';
 import { db } from '../lib/firebase';
 import { collection, query, onSnapshot, orderBy, where, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, setDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { Vocabulary, VocabularyItem, Category, Article, GrammarNote, GrammarItem } from '../types';
-import { Plus, Search, Filter, LogOut, Tags, LayoutGrid, List, BrainCircuit, Youtube, Trash2, Edit3, Save, X, Volume2, FolderPlus, ChevronRight, ChevronDown, Video as VideoIcon, Link as LinkIcon, FileText, Sparkles, Loader2, Settings, User as UserIcon, Mail, BookOpen, Send, Check, Clock, PenTool } from 'lucide-react';
+import { Plus, Search, Filter, LogOut, Tags, LayoutGrid, List, BrainCircuit, Youtube, Trash2, Edit3, Save, X, Volume2, FolderPlus, ChevronRight, ChevronDown, Video as VideoIcon, Link as LinkIcon, FileText, Sparkles, Loader2, Settings, User as UserIcon, Mail, BookOpen, Send, Check, Clock, PenTool, Radio } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getWordEntries, getSingleWordDetails, analyzeArticle, analyzeGrammar } from '../services/geminiService';
-import ListeningQuiz from './ListeningQuiz';
+import QuizView from './QuizView';
+
+const BROADCAST_JINGLE = "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const [vocabularies, setVocabularies] = useState<Vocabulary[]>([]);
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+
+  const playNewsBroadcast = (text: string, title: string) => {
+    setIsBroadcasting(true);
+    window.speechSynthesis.cancel();
+    
+    // Play intro jingle
+    const audio = new Audio(BROADCAST_JINGLE);
+    audio.volume = 0.2;
+    audio.play().catch(e => console.log("Audio play blocked"));
+
+    const intro = `This is CNN breaking news. We are reporting on: ${title}. `;
+    const fullText = intro + text;
+
+    const utterance = new SpeechSynthesisUtterance(fullText);
+    utterance.lang = 'en-US';
+    utterance.rate = 1.05;
+    utterance.pitch = 1.0;
+    
+    const voices = window.speechSynthesis.getVoices();
+    const newsVoice = voices.find(v => v.name.includes("Samantha") || v.name.includes("Daniel") || v.name.includes("Google US English")) || voices[0];
+    if (newsVoice) utterance.voice = newsVoice;
+
+    utterance.onend = () => setIsBroadcasting(false);
+    utterance.onerror = () => setIsBroadcasting(false);
+    
+    window.speechSynthesis.speak(utterance);
+  };
   const [categories, setCategories] = useState<Category[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [grammarNotes, setGrammarNotes] = useState<GrammarNote[]>([]);
@@ -525,20 +555,44 @@ export default function Dashboard() {
     try {
       const result = await analyzeArticle(articleInput);
       const articleRef = doc(collection(db, 'users', user.uid, 'articles'));
+      
+      const identifiedItems = (result.items || []).map((item: any) => ({
+        ...item,
+        sourceId: articleRef.id,
+        sourceType: 'article' as const
+      }));
+
       const articleData = {
         title: result.title || '未命名文章',
         content: articleInput,
         userId: user.uid,
-        items: (result.items || []).map((item: any) => ({
-          ...item,
-          sourceId: articleRef.id,
-          sourceType: 'article'
-        })),
+        items: identifiedItems,
         categoryIds: articleCategorySelection,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
       await setDoc(articleRef, articleData);
+
+      // Automatically import items to the general vocabulary list
+      // This ensures they persist even if the article is deleted
+      for (const item of identifiedItems) {
+        try {
+          await addDoc(collection(db, 'users', user.uid, 'vocabularies'), {
+            title: item.text,
+            items: [item],
+            sourceId: articleRef.id,
+            sourceType: 'article',
+            userId: user.uid,
+            categoryIds: [],
+            masteryLevel: 0,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        } catch (err) {
+          console.error("Auto-import failed for item:", item.text, err);
+        }
+      }
+
       setArticleInput('');
       setArticleCategorySelection([]);
       setView('articles');
@@ -556,21 +610,56 @@ export default function Dashboard() {
     setIsGrammarLoading(true);
     try {
       const result = await analyzeGrammar(grammarInput);
+      const grammarRef = doc(collection(db, 'users', user.uid, 'grammar'));
+      
+      const identifiedItems = (result.items || []).map((item: any) => ({
+        ...item,
+        sourceId: grammarRef.id,
+        sourceType: 'grammar' as const
+      }));
+
       const grammarData = {
         title: result.title || '未命名文法筆記',
         content: grammarInput,
         analysis: result.analysis || '',
         userId: user.uid,
-        items: result.items || [],
+        items: identifiedItems,
         categoryIds: grammarCategorySelection,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
-      const docRef = await addDoc(collection(db, 'users', user.uid, 'grammar'), grammarData);
+      await setDoc(grammarRef, grammarData);
+
+      // Automatically import grammar items to the general list
+      for (const item of identifiedItems) {
+        try {
+          await addDoc(collection(db, 'users', user.uid, 'vocabularies'), {
+            title: item.sentence || item.text || '文法重點',
+            items: [{
+              text: item.sentence || item.text || '',
+              meaning: item.explanation || item.meaning || '',
+              structure: item.structure || '',
+              exampleSentences: item.exampleSentences || [],
+              sourceId: grammarRef.id,
+              sourceType: 'grammar'
+            }],
+            sourceId: grammarRef.id,
+            sourceType: 'grammar',
+            userId: user.uid,
+            categoryIds: [],
+            masteryLevel: 0,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        } catch (err) {
+          console.error("Grammar auto-import failed:", err);
+        }
+      }
+
       setGrammarInput('');
       setGrammarCategorySelection([]);
       setView('grammar');
-      setSelectedGrammarId(docRef.id);
+      setSelectedGrammarId(grammarRef.id);
     } catch (err) {
       console.error(err);
       alert("文法分析失敗");
@@ -1301,7 +1390,7 @@ export default function Dashboard() {
         <section className="p-4 md:p-8 flex-1 overflow-y-auto">
           {view === 'quiz' ? (
             <div className="flex flex-col items-center pt-8">
-              <ListeningQuiz vocabularies={vocabularies} onClose={() => setView('notes')} />
+              <QuizView vocabularies={vocabularies} onClose={() => setView('notes')} />
             </div>
           ) : view === 'articles' ? (
             <div className="space-y-8">
@@ -1550,11 +1639,19 @@ export default function Dashboard() {
                                 )}
                                 <div className="flex gap-2">
                                   <button 
-                                   onClick={() => isSpeaking ? stopAudio() : playAudio(article.content)} 
+                                   onClick={() => isSpeaking || isBroadcasting ? stopAudio() : playAudio(article.content)} 
                                    className={`p-2 rounded-xl transition-all ${isSpeaking ? 'bg-vibrant-red/10 text-vibrant-red animate-pulse' : 'bg-vibrant-blue/10 text-vibrant-blue hover:scale-110'}`}
                                    title={isSpeaking ? "停止播放" : "播放整篇文章發音"}
                                  >
                                    {isSpeaking ? <X className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                                 </button>
+                                 <button 
+                                   onClick={() => isBroadcasting ? stopAudio() : playNewsBroadcast(article.content, article.title)} 
+                                   className={`p-2 rounded-xl transition-all flex items-center gap-1 ${isBroadcasting ? 'bg-vibrant-red/20 text-vibrant-red animate-pulse' : 'bg-vibrant-ink/10 text-vibrant-ink hover:scale-110'}`}
+                                   title="CNN 模式播放 (臨場感)"
+                                 >
+                                   <Radio className="w-5 h-5" />
+                                   {isBroadcasting && <span className="text-[8px] font-black uppercase">News On</span>}
                                  </button>
                                  <button 
                                    onClick={() => handleAnalyzeArticleGrammar(article)} 
@@ -2001,6 +2098,16 @@ export default function Dashboard() {
                             <h2 className="text-2xl font-black">{note.title}</h2>
                             <div className="flex items-center gap-3">
                               <p className="text-xs text-vibrant-gray font-bold uppercase tracking-widest">文法深度解析</p>
+                              <div className="flex gap-2">
+                                <button 
+                                  onClick={() => isBroadcasting ? stopAudio() : playNewsBroadcast(note.content, note.title)} 
+                                  className={`p-1.5 rounded-lg transition-all flex items-center gap-1 ${isBroadcasting ? 'bg-vibrant-red/20 text-vibrant-red animate-pulse' : 'bg-vibrant-ink/10 text-vibrant-ink hover:scale-110'}`}
+                                  title="CNN 模式播放"
+                                >
+                                  <Radio className="w-4 h-4" />
+                                  {isBroadcasting && <span className="text-[8px] font-black">On Air</span>}
+                                </button>
+                              </div>
                               {note.sourceId && (
                                 <button 
                                   onClick={() => jumpToSource(note.sourceId, note.sourceType)}
