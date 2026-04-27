@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Connection test path
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    // Category Validation
+    function isValidCategory(data) {
+      return data.name is string && data.name.size() > 0 && 
+             data.userId == request.auth.uid;
+    }
+
+    // Vocabulary Validation
+    function isValidVocabulary(data) {
+      return data.userId == request.auth.uid;
+    }
+
+    // Article Validation
+    function isValidArticle(data) {
+      return data.title is string && data.title.size() > 0 &&
+             data.content is string && data.content.size() > 0 &&
+             data.userId == request.auth.uid;
+    }
+
+    // Grammar Validation
+    function isValidGrammar(data) {
+      return data.title is string && data.title.size() > 0 &&
+             data.content is string && data.content.size() > 0 &&
+             data.userId == request.auth.uid;
+    }
+
+    // User Data Match
+    match /users/{userId} {
+      // Categories
+      match /categories/{categoryId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidCategory(incoming());
+        allow update: if isOwner(userId) && isValidCategory(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      // Vocabulary
+      match /vocabularies/{vocabId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidVocabulary(incoming());
+        allow update: if isOwner(userId) && isValidVocabulary(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      // Articles
+      match /articles/{articleId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidArticle(incoming());
+        allow update: if isOwner(userId) && isValidArticle(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      // Grammar
+      match /grammar/{grammarId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidGrammar(incoming());
+        allow update: if isOwner(userId) && isValidGrammar(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      // Settings
+      match /settings/{settingId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}

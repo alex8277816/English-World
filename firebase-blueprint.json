@@ -1,0 +1,118 @@
+{
+  "entities": {
+    "category": {
+      "title": "Category",
+      "description": "User-defined categories for organizing vocabulary.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the category." },
+        "userId": { "type": "string", "description": "The owner of this category." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "parentId": { "type": "string", "description": "Optional parent category ID." }
+      },
+      "required": ["name", "userId"]
+    },
+    "vocabulary": {
+      "title": "Learning Entry",
+      "description": "An entry containing a video and multiple vocabulary items.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "items": { 
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": { "type": "string" },
+              "meaning": { "type": "string" }
+            }
+          }
+        },
+        "youtubeId": { "type": "string" },
+        "userId": { "type": "string" },
+        "categoryIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "masteryLevel": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "items"]
+    },
+    "userSettings": {
+      "title": "User Settings",
+      "description": "User profile and app settings.",
+      "type": "object",
+      "properties": {
+        "recoveryEmail": { "type": "string", "description": "Backup email for recovery purposes." },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "article": {
+      "title": "Article Reading",
+      "description": "A long-form article for reading and language learning.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "userId": { "type": "string" },
+        "items": { 
+          "type": "array",
+          "items": { "type": "object", "properties": { "text": { "type": "string" }, "meaning": { "type": "string" } } }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "userId"]
+    },
+    "grammarNote": {
+      "title": "Grammar Note",
+      "description": "An AI-analyzed grammar note from a sentence or paragraph.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "analysis": { "type": "string" },
+        "items": { "type": "array", "items": { "$ref": "grammarItem" } },
+        "userId": { "type": "string" },
+        "categoryIds": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "userId"]
+    },
+    "grammarItem": {
+      "title": "Grammar Item",
+      "description": "A specific grammar structure analyzed within a note.",
+      "type": "object",
+      "properties": {
+        "sentence": { "type": "string" },
+        "explanation": { "type": "string" },
+        "structure": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": "category",
+      "description": "User's custom vocabulary categories."
+    },
+    "/users/{userId}/vocabularies/{vocabId}": {
+      "schema": "vocabulary",
+      "description": "User's saved learning entries."
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": "userSettings",
+      "description": "User's application settings and profile data."
+    },
+    "/users/{userId}/articles/{articleId}": {
+      "schema": "article",
+      "description": "User's saved reading articles."
+    },
+    "/users/{userId}/grammar/{grammarId}": {
+      "schema": "grammarNote",
+      "description": "User's saved grammar analysis notes."
+    }
+  }
+}
