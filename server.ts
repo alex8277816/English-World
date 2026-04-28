@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -24,13 +24,16 @@ async function startServer() {
     }
     try {
       const { model, contents, config } = req.body;
-      const genAI = new GoogleGenAI({ apiKey });
-      const result = await genAI.models.generateContent({
-        model: model || "gemini-2.0-flash",
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const generativeModel = genAI.getGenerativeModel({ model: model || "gemini-2.0-flash" });
+      
+      const result = await generativeModel.generateContent({
         contents,
-        config
+        generationConfig: config
       });
-      res.json({ text: result.text || "" });
+      
+      const response = await result.response;
+      res.json({ text: response.text() });
     } catch (error: any) {
       console.error("AI Proxy Error:", error);
       res.status(500).json({ error: error.message });

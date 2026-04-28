@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -13,14 +13,16 @@ export default async function handler(req: any, res: any) {
       return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
     }
 
-    const genAI = new GoogleGenAI({ apiKey });
-    const result = await genAI.models.generateContent({
-      model: model || "gemini-2.0-flash",
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const generativeModel = genAI.getGenerativeModel({ model: model || "gemini-2.0-flash" });
+
+    const result = await generativeModel.generateContent({
       contents,
-      config
+      generationConfig: config
     });
 
-    return res.json({ text: result.text || "" });
+    const response = await result.response;
+    return res.json({ text: response.text() });
   } catch (error: any) {
     console.error("AI Proxy Error:", error);
     return res.status(500).json({ error: error.message });
