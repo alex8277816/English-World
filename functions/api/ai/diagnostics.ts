@@ -6,7 +6,7 @@ interface Env {
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const { env } = context;
-  const apiKey = env.GEMINI_API_KEY;
+  const apiKey = (env.GEMINI_API_KEY || "").trim();
 
   if (!apiKey) {
     return new Response(JSON.stringify({ 

@@ -3,7 +3,7 @@ import { useAuth } from '../App';
 import { db } from '../lib/firebase';
 import { collection, query, onSnapshot, orderBy, where, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, setDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { Vocabulary, VocabularyItem, Category, Article, GrammarNote, GrammarItem } from '../types';
-import { Plus, Search, Filter, LogOut, Tags, LayoutGrid, List, BrainCircuit, Youtube, Trash2, Edit3, Save, X, Volume2, FolderPlus, ChevronRight, ChevronDown, Video as VideoIcon, Link as LinkIcon, FileText, Sparkles, Loader2, Settings, User as UserIcon, Mail, BookOpen, Send, Check, Clock, PenTool, Radio } from 'lucide-react';
+import { Plus, Search, Filter, LogOut, Tags, LayoutGrid, List, BrainCircuit, Youtube, Trash2, Edit3, Save, X, Volume2, FolderPlus, ChevronRight, ChevronDown, Video as VideoIcon, Link as LinkIcon, FileText, Sparkles, Loader2, Settings, User as UserIcon, Mail, BookOpen, Send, Check, Clock, PenTool, Radio, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getWordEntries, getSingleWordDetails, analyzeArticle, analyzeGrammar } from '../services/geminiService';
 import QuizView from './QuizView';
@@ -284,6 +284,18 @@ export default function Dashboard() {
     };
   }, [user]);
 
+  const handleDiagnostics = async () => {
+    try {
+      const response = await fetch('/api/ai/diagnostics');
+      const data = await response.json() as any;
+      console.log('Diagnostics Result:', data);
+      alert(`API 診斷完畢 (雲端版本):\n狀態: ${data.results?.[0]?.status || 'Unknown'}\n訊息: ${data.results?.[0]?.message || '無錯誤'}\nAPI Key 前綴: ${data.apiKeyPrefix}\n\n若狀態為 Error，請確認您的 Cloudflare Secrets 設定。`);
+    } catch (err) {
+      console.error(err);
+      alert('診斷請求失敗，請確認網路連線');
+    }
+  };
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -320,13 +332,17 @@ export default function Dashboard() {
         const aiResult = await getWordEntries(textToAnalyze);
         const allItems = aiResult?.items || [];
         
+        if (allItems.length === 0) {
+          alert("AI 無法從此連結提取單字，請檢查網址或嘗試輸入文字。");
+          return;
+        }
+
         // Filter out duplicates
         const uniqueItems = allItems.filter((item: any) => 
           !vocabularies.some(v => v.items.some(vItem => vItem.text.toLowerCase().trim() === item.text.toLowerCase().trim()))
         );
 
         if (uniqueItems.length === 0 && allItems.length > 0) {
-          // Just alert or log since we want to avoid blocking confirms
           console.log("All items already exist, but proceeding as requested.");
         }
         
@@ -352,6 +368,11 @@ export default function Dashboard() {
         const aiResult = await getWordEntries(newInput);
         const items = aiResult?.items || [];
         
+        if (items.length === 0) {
+          alert("AI 無法分析輸入的內容，請嘗試換個說法或是檢查 API 設定。");
+          return;
+        }
+
         // Filter out duplicates
         const uniqueItems = items.filter((item: any) => 
           !vocabularies.some(v => v.items.some(vItem => vItem.text.toLowerCase().trim() === item.text.toLowerCase().trim()))
@@ -403,6 +424,7 @@ export default function Dashboard() {
       setIsAdding(false);
     } catch (err) {
       console.error(err);
+      alert("學習紀錄新增失敗，請檢查網路連線或 API 設定");
     } finally {
       setIsAiLoading(false);
     }
@@ -497,10 +519,13 @@ export default function Dashboard() {
     
     if (!user || !id) return;
     
+    if (!window.confirm("確定要刪除這個單字筆記嗎？")) return;
+
     try {
       await deleteDoc(doc(db, 'users', user.uid, 'vocabularies', id));
     } catch (err) {
       console.error("Delete vocab error:", err);
+      alert("刪除失敗，請檢查權限");
     }
   };
 
@@ -1558,27 +1583,29 @@ export default function Dashboard() {
                                標註 {article.items?.length || 0}
                             </span>
                             <div className="relative">
-                              <button 
-                                type="button"
-                                onClick={(e) => { 
-                                  e.stopPropagation(); 
-                                  if (articleToDeleteId === article.id) {
-                                    handleDeleteArticle(article.id);
-                                  } else {
-                                    setArticleToDeleteId(article.id);
-                                    setTimeout(() => setArticleToDeleteId(null), 3000);
-                                  }
-                                }}
-                                className={`p-2 rounded-lg transition-all flex items-center gap-1 ${
-                                  articleToDeleteId === article.id 
-                                    ? 'bg-vibrant-red text-white text-[10px] font-black' 
-                                    : 'text-vibrant-gray hover:text-vibrant-red bg-transparent'
-                                } relative z-[60] cursor-pointer pointer-events-auto shadow-none border-none`}
-                                title={articleToDeleteId === article.id ? "再次點擊確認刪除" : "刪除文章"}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                {articleToDeleteId === article.id && "確認？"}
-                              </button>
+                                  <button 
+                                    type="button"
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      if (articleToDeleteId === article.id) {
+                                        handleDeleteArticle(article.id);
+                                        setArticleToDeleteId(null);
+                                      } else {
+                                        setArticleToDeleteId(article.id);
+                                        // Extended timeout for better UX
+                                        setTimeout(() => setArticleToDeleteId(null), 5000);
+                                      }
+                                    }}
+                                    className={`p-2 rounded-lg transition-all flex items-center gap-1 ${
+                                      articleToDeleteId === article.id 
+                                        ? 'bg-vibrant-red text-white text-[10px] font-black scale-105' 
+                                        : 'text-vibrant-gray hover:text-vibrant-red bg-transparent'
+                                    } relative z-[60] cursor-pointer pointer-events-auto shadow-lg border-none`}
+                                    title={articleToDeleteId === article.id ? "再次點擊以確認永久刪除" : "刪除文章"}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    {articleToDeleteId === article.id && <span>點擊確認</span>}
+                                  </button>
                             </div>
                           </div>
                         </div>
@@ -1666,27 +1693,28 @@ export default function Dashboard() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="relative">
-                                  <button 
-                                    type="button"
-                                    onClick={(e) => { 
-                                      e.stopPropagation();
-                                      if (articleToDeleteId === article.id) {
-                                        handleDeleteArticle(article.id);
-                                      } else {
-                                        setArticleToDeleteId(article.id);
-                                        setTimeout(() => setArticleToDeleteId(null), 3000);
-                                      }
-                                    }}
-                                    className={`p-3 rounded-xl transition-all flex items-center gap-2 font-black ${
-                                      articleToDeleteId === article.id 
-                                        ? 'bg-vibrant-red text-white' 
-                                        : 'text-vibrant-gray hover:text-vibrant-red hover:bg-vibrant-red/5'
-                                    } relative z-[100] cursor-pointer pointer-events-auto`}
-                                    title={articleToDeleteId === article.id ? "再次點擊確認刪除" : "刪除本篇文章"}
-                                  >
-                                    <Trash2 className="w-5 h-5 pointer-events-none" />
-                                    {articleToDeleteId === article.id && "確認刪除文章？"}
-                                  </button>
+                                    <button 
+                                      type="button"
+                                      onClick={(e) => { 
+                                        e.stopPropagation();
+                                        if (articleToDeleteId === article.id) {
+                                          handleDeleteArticle(article.id);
+                                          setArticleToDeleteId(null);
+                                        } else {
+                                          setArticleToDeleteId(article.id);
+                                          setTimeout(() => setArticleToDeleteId(null), 5000);
+                                        }
+                                      }}
+                                      className={`p-3 rounded-xl transition-all flex items-center gap-2 font-black ${
+                                        articleToDeleteId === article.id 
+                                          ? 'bg-vibrant-red text-white scale-105' 
+                                          : 'text-vibrant-gray hover:text-vibrant-red hover:bg-vibrant-red/5'
+                                      } relative z-[100] cursor-pointer pointer-events-auto shadow-lg`}
+                                      title={articleToDeleteId === article.id ? "再次點擊以確認永久刪除" : "刪除本篇文章"}
+                                    >
+                                    <Trash2 className="w-5 h-5" />
+                                      {articleToDeleteId === article.id && <span>點擊確認刪除記事</span>}
+                                    </button>
                                 </div>
                               </div>
                             </div>
@@ -2608,7 +2636,7 @@ export default function Dashboard() {
                           className="p-3 text-vibrant-gray hover:text-vibrant-red hover:bg-vibrant-red/10 rounded-2xl transition-all relative z-[999] cursor-pointer pointer-events-auto hover:scale-125 active:scale-90"
                           title={v.source === 'article' ? "移除此標註" : "直接刪除筆記"}
                         >
-                          <Trash2 className="w-5 h-5 pointer-events-none" />
+                          <Trash2 className="w-5 h-5" />
                         </button>
                       </div>
                   </div>
@@ -2780,7 +2808,7 @@ export default function Dashboard() {
                                 className="p-2 opacity-0 group-hover/item:opacity-100 hover:bg-white rounded-lg transition-all text-vibrant-gray hover:text-vibrant-red relative z-30 cursor-pointer pointer-events-auto"
                                 title="直接刪除單字"
                               >
-                                <Trash2 className="w-4 h-4 pointer-events-none" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
@@ -3138,6 +3166,19 @@ export default function Dashboard() {
                     />
                   </div>
                   <p className="text-[10px] text-vibrant-gray font-medium ml-2">作為帳號救援或通知使用的備用信箱。</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-widest text-vibrant-gray ml-2">系統診斷</label>
+                  <button 
+                    type="button"
+                    onClick={handleDiagnostics}
+                    className="w-full bg-vibrant-bg border-2 border-[#EBEBEB] text-vibrant-ink font-bold py-3 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#F1F2F6] transition-all"
+                  >
+                    <Activity className="w-4 h-4 text-vibrant-blue" />
+                    執行 AI API 診斷測試
+                  </button>
+                  <p className="text-[10px] text-vibrant-gray font-medium ml-2">測試您的 Gemini API Key 是否能在此環境正常運行。</p>
                 </div>
 
                 <button 

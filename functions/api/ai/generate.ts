@@ -6,7 +6,7 @@ interface Env {
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
-  const apiKey = env.GEMINI_API_KEY;
+  const apiKey = (env.GEMINI_API_KEY || "").trim();
 
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "GEMINI_API_KEY is not configured in Cloudflare" }), {
