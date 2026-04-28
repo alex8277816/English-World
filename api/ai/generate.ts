@@ -40,6 +40,7 @@ export default async function handler(req: any, res: any) {
     const modelsToTry = [
       modelName,
       "gemini-1.5-flash",
+      "gemini-1.5-flash-8b",
       "gemini-1.5-flash-latest",
       "gemini-1.5-pro",
       "gemini-pro",
