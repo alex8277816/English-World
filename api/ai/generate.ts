@@ -40,7 +40,6 @@ export default async function handler(req: any, res: any) {
     const modelsToTry = [
       modelName,
       "gemini-1.5-flash",
-      "gemini-1.5-flash-8b",
       "gemini-1.5-flash-latest",
       "gemini-1.5-pro",
       "gemini-pro",
@@ -67,19 +66,23 @@ export default async function handler(req: any, res: any) {
     for (const currentModelName of modelsToTry) {
       if (!currentModelName) continue;
       try {
-        console.log(`Attempting Gemini API with model: ${currentModelName}`);
+        console.log(`[Vercel] Attempting Gemini model: ${currentModelName}`);
         const generativeModel = genAI.getGenerativeModel({ model: currentModelName });
+        
+        // Use a timeout or signal if needed, but here we just try
         result = await generativeModel.generateContent({
           contents: formattedContents,
           generationConfig: config
         });
-        // If we reach here, it worked
-        break; 
+        
+        if (result) {
+          console.log(`[Vercel] Successfully hit ${currentModelName}`);
+          break; 
+        }
       } catch (err: any) {
         lastError = err;
-        console.warn(`Attempt with ${currentModelName} failed:`, err.message);
+        console.warn(`[Vercel] Attempt with ${currentModelName} failed:`, err.message);
         
-        // If the error is an Auth error (403, 401), don't bother trying other models
         if (err.message?.includes("API key not valid") || 
             err.message?.includes("403") || 
             err.message?.includes("API_KEY_INVALID")) {
