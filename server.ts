@@ -17,29 +17,36 @@ async function startServer() {
   app.use(express.json());
 
   // Gemini API Proxy
-  app.post("/api/ai/generate", async (req, res) => {
-    try {
-      const { model, contents, config } = req.body;
-      const apiKey = process.env.GEMINI_API_KEY;
+  const apiHandler = async (req: any, res: any) => {
+    if (req.method === 'POST' && req.url?.includes('/api/ai/generate')) {
+      try {
+        const { model, contents, config } = req.body;
+        const apiKey = process.env.GEMINI_API_KEY;
 
-      if (!apiKey) {
-        return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
+        if (!apiKey) {
+          return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
+        }
+
+        const genAI = new GoogleGenAI({ apiKey });
+        const result = await genAI.models.generateContent({
+          model: model || "gemini-2.0-flash",
+          contents,
+          config
+        });
+
+        return res.json({ text: result.text || "" });
+      } catch (error: any) {
+        console.error("AI Proxy Error:", error);
+        return res.status(500).json({ error: error.message });
       }
-
-      const genAI = new GoogleGenAI({ apiKey });
-
-      const result = await genAI.models.generateContent({
-        model: model || "gemini-2.0-flash",
-        contents,
-        config
-      });
-
-      res.json({ text: result.text || "" });
-    } catch (error: any) {
-      console.error("AI Proxy Error:", error);
-      res.status(500).json({ error: error.message });
     }
-  });
+
+    if (req.url?.includes('/api/health')) {
+      return res.json({ status: "ok" });
+    }
+  };
+
+  app.all("/api/*", apiHandler);
 
   // Health check
   app.get("/api/health", (req, res) => {
@@ -64,6 +71,13 @@ async function startServer() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+  
+  return app;
 }
 
-startServer();
+const appPromise = startServer();
+
+export default async (req: any, res: any) => {
+  const app = await appPromise;
+  app(req, res);
+};
