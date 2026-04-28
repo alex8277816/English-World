@@ -29,7 +29,7 @@ async function startServer() {
       const genAI = new GoogleGenAI({ apiKey });
 
       const result = await genAI.models.generateContent({
-        model: model || "gemini-1.5-flash",
+        model: model || "gemini-2.0-flash",
         contents,
         config
       });
