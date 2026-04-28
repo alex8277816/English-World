@@ -16,33 +16,47 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Gemini API Proxy
-  app.post("/api/ai/generate", async (req, res) => {
+  // API Routes
+  app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+
+  app.get("/api/ai/diagnostics", async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
-    }
+    if (!apiKey) return res.status(500).json({ status: "Error", message: "GEMINI_API_KEY missing" });
     try {
-      const { model, contents, config } = req.body;
       const genAI = new GoogleGenerativeAI(apiKey);
-      const generativeModel = genAI.getGenerativeModel({ model: model || "gemini-2.0-flash" });
-      
-      const result = await generativeModel.generateContent({
-        contents,
-        generationConfig: config
-      });
-      
-      const response = await result.response;
-      res.json({ text: response.text() });
-    } catch (error: any) {
-      console.error("AI Proxy Error:", error);
-      res.status(500).json({ error: error.message });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const result = await model.generateContent("hello");
+      res.json({ status: "Active", key_length: apiKey.length, test_ok: true });
+    } catch (e: any) {
+      res.status(500).json({ status: "Failed", error: e.message });
     }
   });
 
-  // Health check
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+  app.post("/api/ai/generate", async (req, res) => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "API Key not configured" });
+    try {
+      const { model, contents, config } = req.body;
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const modelsToTry = [model, "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
+      let result, lastError;
+      for (const m of modelsToTry) {
+        if (!m) continue;
+        try {
+          const generativeModel = genAI.getGenerativeModel({ model: m });
+          result = await generativeModel.generateContent({ contents, generationConfig: config });
+          if (result) break;
+        } catch (err: any) {
+          lastError = err;
+          if (err.message?.includes("API key not valid")) break;
+        }
+      }
+      if (!result) throw lastError || new Error("All models failed");
+      const response = await result.response;
+      res.json({ text: response.text() });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // Vite middleware for development

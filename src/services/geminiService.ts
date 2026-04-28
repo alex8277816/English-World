@@ -1,21 +1,54 @@
 // src/services/geminiService.ts
 
 async function callAIProxy(params: { model: string, contents: string | any, config?: any }) {
-  const response = await fetch("/api/ai/generate", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(params),
-  });
+  try {
+    const response = await fetch("/api/ai/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(params),
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || "AI Request failed");
+    if (!response.ok) {
+      let errorMessage = "AI Request failed";
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.details || errorMessage;
+        if (errorData.suggestion) errorMessage += ` (${errorData.suggestion})`;
+      } catch (e) {
+        errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (err: any) {
+    console.error("Fetch/Proxy Error:", err);
+    throw err;
   }
+}
 
-  const data = await response.json();
-  return data;
+/**
+ * Helper to extract and parse JSON from AI response text
+ * Handles markdown code blocks if the model includes them
+ */
+function safeParseAIJson(text: string) {
+  if (!text) return {};
+  try {
+    // 1. Try direct parse
+    return JSON.parse(text);
+  } catch (e) {
+    try {
+      // 2. Try removing markdown markers
+      const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
+      return JSON.parse(cleaned);
+    } catch (e2) {
+      console.error("Failed to parse AI JSON. Raw text:", text);
+      return {};
+    }
+  }
 }
 
 export async function getWordEntries(input: string) {
@@ -57,9 +90,13 @@ export async function getWordEntries(input: string) {
         }
       }
     });
-    return JSON.parse(data.text || "{}");
-  } catch (e) {
+    return safeParseAIJson(data.text);
+  } catch (e: any) {
     console.error("AI Proxy error", e);
+    // Explicitly alert the user on Vercel if it fails
+    if (window.location.hostname !== 'localhost') {
+      console.error("CRITICAL: AI identification failed on production. Error:", e.message);
+    }
     return { items: [] };
   }
 }
@@ -88,7 +125,7 @@ export async function getSingleWordDetails(word: string) {
         }
       }
     });
-    return JSON.parse(data.text || "{}");
+    return safeParseAIJson(data.text);
   } catch (e) {
     console.error("AI details error", e);
     return null;
@@ -136,7 +173,7 @@ export async function analyzeArticle(content: string) {
         }
       }
     });
-    return JSON.parse(data.text || "{}");
+    return safeParseAIJson(data.text);
   } catch (e) {
     console.error("Article AI Proxy error", e);
     return { title: "英文文章閱讀", items: [] };
@@ -184,7 +221,7 @@ export async function analyzeGrammar(content: string) {
         }
       }
     });
-    return JSON.parse(data.text || "{}");
+    return safeParseAIJson(data.text);
   } catch (e) {
     console.error("Grammar AI Proxy error", e);
     return { title: "文法分析", analysis: "無法分析文法內容", items: [] };

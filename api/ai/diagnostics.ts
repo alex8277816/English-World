@@ -3,25 +3,36 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 export default async function handler(req: any, res: any) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "GEMINI_API_KEY is missing." });
+    return res.status(500).json({ 
+      status: "Error", 
+      message: "GEMINI_API_KEY is missing in your Vercel Project Settings." 
+    });
   }
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Note: The Node SDK doesn't have a direct listModels method on the genAI instance 
-    // that returns full info easily in some versions, but we can try fetching 
-    // or just return help info.
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
+    // Perform a simple test call
+    const result = await model.generateContent("Test connection");
+    const response = await result.response;
+    const text = response.text();
+
     return res.json({ 
-      message: "Diagnostics info",
-      env: {
-        HAS_KEY: !!apiKey,
-        KEY_LENGTH: apiKey.length,
-        NODE_ENV: process.env.NODE_ENV
-      },
-      suggestion: "If you get 404, try setting model to 'gemini-1.5-flash' or 'gemini-1.5-pro' in your request."
+      status: "Active",
+      message: "API Key is working correctly!",
+      details: {
+        key_length: apiKey.length,
+        key_preview: apiKey.substring(0, 4) + "..." + apiKey.substring(apiKey.length - 4),
+        test_response: text.substring(0, 50) + "..."
+      }
     });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    console.error("Diagnostics error:", error);
+    return res.status(500).json({ 
+      status: "Failed", 
+      message: error.message || "Unknown error connecting to Gemini API",
+      suggestion: "Check if your API Key is correctly set in Vercel Environment Variables and that it has access to 'gemini-1.5-flash'."
+    });
   }
 }
