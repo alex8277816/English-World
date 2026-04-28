@@ -11,21 +11,27 @@ export default async function handler(req: any, res: any) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
-    // Perform a simple test call
-    const result = await model.generateContent("Test connection");
-    const response = await result.response;
-    const text = response.text();
+    // Attempting to list models is often restricted by API key permissions in AI Studio
+    // so we'll try a few common model names and see which one responds.
+    const modelsToTest = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro", "gemini-1.0-pro"];
+    const results = [];
+
+    for (const modelName of modelsToTest) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const testResult = await model.generateContent("ping");
+        const response = await testResult.response;
+        results.push({ name: modelName, status: "OK", response: response.text().substring(0, 20) });
+      } catch (e: any) {
+        results.push({ name: modelName, status: "Error", message: e.message });
+      }
+    }
 
     return res.json({ 
-      status: "Active",
-      message: "API Key is working correctly!",
-      details: {
-        key_length: apiKey.length,
-        key_preview: apiKey.substring(0, 4) + "..." + apiKey.substring(apiKey.length - 4),
-        test_response: text.substring(0, 50) + "..."
-      }
+      status: "Diagnostics Completed",
+      apiKeyLength: apiKey.length,
+      results: results
     });
   } catch (error: any) {
     console.error("Diagnostics error:", error);

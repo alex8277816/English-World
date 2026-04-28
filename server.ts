@@ -38,17 +38,19 @@ async function startServer() {
     try {
       const { model, contents, config } = req.body;
       const genAI = new GoogleGenerativeAI(apiKey);
-      const modelsToTry = [model, "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
+      const modelsToTry = [model, "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro", "gemini-1.0-pro"];
       let result, lastError;
       for (const m of modelsToTry) {
         if (!m) continue;
         try {
+          console.log(`Server attempting Gemini with: ${m}`);
           const generativeModel = genAI.getGenerativeModel({ model: m });
           result = await generativeModel.generateContent({ contents, generationConfig: config });
           if (result) break;
         } catch (err: any) {
           lastError = err;
-          if (err.message?.includes("API key not valid")) break;
+          console.warn(`Server attempt with ${m} failed:`, err.message);
+          if (err.message?.includes("API key not valid") || err.message?.includes("403")) break;
         }
       }
       if (!result) throw lastError || new Error("All models failed");
