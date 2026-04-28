@@ -13,7 +13,7 @@ async function callAIProxy(params: { model: string, contents: string | any, conf
     if (!response.ok) {
       let errorMessage = "AI Request failed";
       try {
-        const errorData = await response.json();
+        const errorData = await response.json() as any;
         errorMessage = errorData.error || errorData.details || errorMessage;
         if (errorData.suggestion) errorMessage += ` (${errorData.suggestion})`;
       } catch (e) {
@@ -22,7 +22,7 @@ async function callAIProxy(params: { model: string, contents: string | any, conf
       throw new Error(errorMessage);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     return data;
   } catch (err: any) {
     console.error("Fetch/Proxy Error:", err);
