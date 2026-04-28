@@ -30,18 +30,25 @@ export default async function handler(req: any, res: any) {
   try {
     let { model, contents, config } = req.body;
     
-    // Normalize model name - ensures it doesn't have double "models/" prefix or other issues
+    // Normalize model name
     let modelName = model || "gemini-1.5-flash";
     if (modelName.includes("/")) {
       modelName = modelName.split("/").pop();
     }
     
-    console.log("Normalized model name:", modelName);
+    // List of models to try in order of preference
+    const modelsToTry = [
+      modelName,
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-latest",
+      "gemini-1.5-pro",
+      "gemini-pro"
+    ];
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
     // Ensure contents is an array of content objects
-    let formattedContents = [];
+    let formattedContents: any[] = [];
     if (Array.isArray(contents)) {
       formattedContents = contents;
     } else if (typeof contents === 'string') {
@@ -51,26 +58,36 @@ export default async function handler(req: any, res: any) {
     } else {
       throw new Error("Invalid contents format. Expected string or array of parts.");
     }
-
-    // Try primary model, fallback if it fails with specific errors
+    
     let result;
-    try {
-      const generativeModel = genAI.getGenerativeModel({ model: modelName });
-      result = await generativeModel.generateContent({
-        contents: formattedContents,
-        generationConfig: config
-      });
-    } catch (firstError: any) {
-      console.warn(`Primary model ${modelName} failed, trying fallback...`, firstError.message);
-      if (modelName !== "gemini-1.5-flash") {
-        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        result = await fallbackModel.generateContent({
+    let lastError;
+
+    for (const currentModelName of modelsToTry) {
+      if (!currentModelName) continue;
+      try {
+        console.log(`Attempting Gemini API with model: ${currentModelName}`);
+        const generativeModel = genAI.getGenerativeModel({ model: currentModelName });
+        result = await generativeModel.generateContent({
           contents: formattedContents,
           generationConfig: config
         });
-      } else {
-        throw firstError;
+        // If we reach here, it worked
+        break; 
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Attempt with ${currentModelName} failed:`, err.message);
+        
+        // If the error is an Auth error (403, 401), don't bother trying other models
+        if (err.message?.includes("API key not valid") || 
+            err.message?.includes("403") || 
+            err.message?.includes("API_KEY_INVALID")) {
+          break;
+        }
       }
+    }
+
+    if (!result) {
+      throw lastError || new Error("All model attempts failed");
     }
 
     const response = await result.response;
