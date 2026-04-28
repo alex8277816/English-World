@@ -2550,18 +2550,18 @@ export default function Dashboard() {
                           <p className="text-[10px] text-vibrant-gray font-black uppercase tracking-widest">
                             {v.source === 'article' ? '文章重點標註' : (v.youtubeId ? '影片學習筆記' : '一般單字筆記')}
                           </p>
-                          {((v.source === 'article' && v.realId) || (v.sourceType === 'article' && v.sourceId)) && (
+                          {((v.source === 'article' && (v as any).realId) || ((v as any).sourceType === 'article' && (v as any).sourceId)) && (
                             <button 
-                              onClick={() => jumpToSource((v as any).realId || v.sourceId, 'article')}
+                              onClick={() => jumpToSource((v as any).realId || (v as any).sourceId, 'article')}
                               className="flex items-center gap-1 text-[9px] font-black text-vibrant-blue hover:underline uppercase"
                             >
                               <LinkIcon className="w-2.5 h-2.5" />
                               追溯原文
                             </button>
                           )}
-                          {((v.sourceType === 'video' && v.sourceId)) && (
+                          {(((v as any).sourceType === 'video' && (v as any).sourceId)) && (
                             <button 
-                              onClick={() => jumpToSource(v.sourceId, 'video')}
+                              onClick={() => jumpToSource((v as any).sourceId, 'video')}
                               className="flex items-center gap-1 text-[9px] font-black text-vibrant-red hover:underline uppercase"
                             >
                               <Youtube className="w-2.5 h-2.5" />
@@ -2574,7 +2574,7 @@ export default function Dashboard() {
                       <div className="flex gap-2 shrink-0">
                         <button 
                           onClick={() => {
-                            const newNotes = window.prompt("更新學習備註:", v.notes || "");
+                            const newNotes = window.prompt("更新學習備註:", (v as any).notes || "");
                             if (newNotes !== null) {
                               updateDoc(doc(db, 'users', user?.uid!, 'vocabularies', v.id), { notes: newNotes, updatedAt: serverTimestamp() });
                             }
@@ -2625,10 +2625,10 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {v.notes && (
+                  {(v as any).notes && (
                     <div className="mb-6 bg-vibrant-blue/5 p-4 rounded-2xl border border-vibrant-blue/10">
                       <p className="text-[10px] font-black text-vibrant-blue uppercase tracking-widest mb-1 opacity-50">總體備註</p>
-                      <p className="text-sm text-vibrant-ink font-medium italic">{v.notes}</p>
+                      <p className="text-sm text-vibrant-ink font-medium italic">{(v as any).notes}</p>
                     </div>
                   )}
 
