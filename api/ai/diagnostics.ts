@@ -27,26 +27,24 @@ export default async function handler(req: any, res: any) {
 
     const modelsToTest = [
       "gemini-1.5-flash", 
-      "gemini-1.5-flash-latest",
+      "gemini-1.5-flash-8b",
       "gemini-1.5-pro",
-      "gemini-2.0-flash-exp",
       "gemini-pro"
     ];
-    const results = [];
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const testResults = [];
 
     for (const modelName of modelsToTest) {
       try {
         const model = genAI.getGenerativeModel({ model: modelName });
         const testResult = await model.generateContent("hi");
         const response = await testResult.response;
-        results.push({ 
+        testResults.push({ 
           name: modelName, 
           status: "OK", 
           response: response.text().substring(0, 20) 
         });
       } catch (e: any) {
-        results.push({ 
+        testResults.push({ 
           name: modelName, 
           status: "Error", 
           message: e.message,
@@ -55,8 +53,8 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const isAll404 = results.every(r => r.status === "Error" && r.status_code === 404);
-    const hasSuccess = results.some(r => r.status === "OK");
+    const isAll404 = testResults.every(r => r.status === "Error" && r.status_code === 404);
+    const hasSuccess = testResults.some(r => r.status === "OK");
 
     return res.json({ 
       status: "Diagnostics Completed",
@@ -64,12 +62,12 @@ export default async function handler(req: any, res: any) {
       apiKeyLength: apiKey.length,
       apiKeyPrefix: apiKey.substring(0, 4), 
       hasSuccess,
-      results: results,
+      results: testResults,
       advice: hasSuccess 
-        ? "測試成功！至少有一個型號可以運作。請確保 App 設定中使用的是成功的型號。"
+        ? "測試成功！至少有一個型號可以運作。請檢查並使用成功的型號。"
         : (isAll404 
-            ? "仍然全部 404。這非常有可能是以下原因：\n1. 你的 Key 是在 Google Cloud Console (Vertex AI) 申請的，而不是在 Google AI Studio (https://aistudio.google.com/)。請確認是在 AI Studio 點擊 'Get API Key' 建立的。\n2. 你的專案可能沒有啟用 'Generative Language API'。\n3. 請嘗試在 AI Studio 介面左側選擇一個型號並點擊 'Run' 測試是否能正常對話。"
-            : "測試失敗，請檢查網路或 API Key 權限。")
+            ? "仍然全部 404。雖然截圖確認您在 AI Studio 申請了 Key，但伺服器仍回報找不到型號。請嘗試：\n1. 在 AI Studio 網頁右側面板切換不同 Model 並輸入 'Hi' 測試對話是否正常。\n2. 在 API Key 清單點擊該 Key 並確認沒有設定任何 'API restrictions'。\n3. 如果網頁版正常但這裡還是 404，可能是 API 版本同步問題，請稍候 5 分鐘再試。"
+            : "測試失敗，請檢查 API Key 狀態。")
     });
   } catch (error: any) {
     console.error("Diagnostics error:", error);

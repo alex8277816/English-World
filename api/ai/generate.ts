@@ -40,9 +40,10 @@ export default async function handler(req: any, res: any) {
     const modelsToTry = [
       modelName,
       "gemini-1.5-flash",
+      "gemini-1.5-flash-8b",
       "gemini-1.5-flash-latest",
       "gemini-1.5-pro",
-      "gemini-2.0-flash-exp",
+      "gemini-1.5-pro-latest",
       "gemini-pro"
     ];
 
@@ -66,22 +67,22 @@ export default async function handler(req: any, res: any) {
     for (const currentModelName of modelsToTry) {
       if (!currentModelName) continue;
       try {
-        console.log(`[Vercel] Attempting Gemini model: ${currentModelName}`);
+        console.log(`[AI] Attempting model: ${currentModelName}`);
         const generativeModel = genAI.getGenerativeModel({ model: currentModelName });
         
-        // Use a timeout or signal if needed, but here we just try
-        result = await generativeModel.generateContent({
+        const generationResult = await generativeModel.generateContent({
           contents: formattedContents,
           generationConfig: config
         });
         
-        if (result) {
-          console.log(`[Vercel] Successfully hit ${currentModelName}`);
+        if (generationResult && generationResult.response) {
+          result = generationResult;
+          console.log(`[AI] Successfully hit ${currentModelName}`);
           break; 
         }
       } catch (err: any) {
         lastError = err;
-        console.warn(`[Vercel] Attempt with ${currentModelName} failed:`, err.message);
+        console.warn(`[AI] Attempt with ${currentModelName} failed: ${err.message}`);
         
         if (err.message?.includes("API key not valid") || 
             err.message?.includes("403") || 
